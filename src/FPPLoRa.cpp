@@ -86,11 +86,7 @@ public:
         return total;
     }
     
-#if FPP_MAJOR_VERSION >= 4
-    virtual const std::shared_ptr<httpserver::http_response> render_POST(const httpserver::http_request &req) override {
-#else
-    virtual const httpserver::http_response render_POST(const httpserver::http_request &req) override {
-#endif
+    virtual HTTP_RESPONSE_CONST std::shared_ptr<httpserver::http_response> render_POST(const httpserver::http_request &req) override {
         printf("In render_POST\n");
         
         std::string MA = req.get_arg("MA");
@@ -100,7 +96,7 @@ public:
         std::string TXP = req.get_arg("TXP");
         std::string CH = req.get_arg("CH");
         if (FEC == "") {
-            FEC = "0";
+            FEC = std::string("0");
         }
         bool reopen = false;
         if (devFile >= 0) {
