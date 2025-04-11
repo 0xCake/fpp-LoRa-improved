@@ -47,57 +47,208 @@ public:
             devFile = -1;
         }
     }
-    
-    void addUBR(const std::string &UBR, char &f) {
-        if (UBR == "1200")   f |= 0b00000000;
-        if (UBR == "2400")   f |= 0b00001000;
-        if (UBR == "4800")   f |= 0b00010000;
-        if (UBR == "9600")   f |= 0b00011000;
-        if (UBR == "19200")  f |= 0b00100000;
-        if (UBR == "38400")  f |= 0b00101000;
-        if (UBR == "57600")  f |= 0b00110000;
-        if (UBR == "115200") f |= 0b00111000;
+    void setupPacket(char *buf, const std::string &modType) {
+        buf[0] = 0xC0;
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            // nothing else
+        } else {
+            buf[1] = 0x00;
+            buf[2] = 0x07;
+        }
     }
-    void addADR(const std::string &ADR, char &f) {
-        if (ADR == "300")    f |= 0b00000000;
-        if (ADR == "1200")   f |= 0b00000001;
-        if (ADR == "2400")   f |= 0b00000010;
-        if (ADR == "4800")   f |= 0b00000011;
-        if (ADR == "9600")   f |= 0b00000100;
-        if (ADR == "19200")  f |= 0b00000101;
+    void addMA(int MA, char *buf, const std::string &modType) {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            buf[1] = (MA >> 8) & 0xFF;
+            buf[2] = MA & 0xFF;
+        } else {
+            buf[3] = (MA >> 8) & 0xFF;
+            buf[4] = MA & 0xFF;
+            buf[5] = 0x00; // NETID
+        }
     }
-
+    void addUBR(int UBR, char *buf, const std::string &modType) {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            char &f = buf[3];
+            f &= 0b11000111;
+            switch (UBR) {
+                case 1200: f |= 0b00000000; break;
+                case 2400: f |= 0b00001000; break;
+                case 4800: f |= 0b00010000; break;
+                case 9600: f |= 0b00011000; break;
+                case 19200: f |= 0b00100000; break;
+                case 38400: f |= 0b00101000; break;
+                case 57600: f |= 0b00110000; break;
+                case 115200: f |= 0b00111000; break;
+            }
+        } else {
+            char &f = buf[6];
+            f &= 0b00011111;
+            switch (UBR) {
+                case 1200: f |= 0b00000000; break;
+                case 2400: f |= 0b00100000; break;
+                case 4800: f |= 0b01000000; break;
+                case 9600: f |= 0b01100000; break;
+                case 19200: f |= 0b10000000; break;
+                case 38400: f |= 0b10100000; break;
+                case 57600: f |= 0b11000000; break;
+                case 115200: f |= 0b11100000; break;
+            }
+        }
+    }
+    void addADR(int ADR, char *buf, const std::string &modType) {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            char &f = buf[3];
+            // clear the last 3 bits
+            f &= 0b11111000;
+            switch (ADR) {
+                case 300: f |= 0b00000000; break;
+                case 1200: f |= 0b00000001; break;
+                case 2400: f |= 0b00000010; break;
+                case 4800: f |= 0b00000011; break;
+                case 9600: f |= 0b00000100; break;
+                case 19200: f |= 0b00000101; break;
+            }
+        } else if (modType == "E22-230T22U") {
+            char &f = buf[6];
+            // clear the last 3 bits
+            f &= 0b11111000;
+            switch (ADR) {
+                case 2400:  f |= 0b00000010; break;
+                case 4800:  f |= 0b00000100; break;
+                case 9600:  f |= 0b00000101; break;
+                case 15600: f |= 0b00000110; break;
+            }
+        } else if (modType == "E22-400T22U" || modType == "E22-900T22U" || modType == "SX1262" || modType == "SX1268") {
+            char &f = buf[6];
+            // clear the last 3 bits
+            f &= 0b11111000;
+            switch (ADR) {
+                case 2400:  f |= 0b00000010; break;
+                case 4800:  f |= 0b00000011; break;
+                case 9600:  f |= 0b00000100; break;
+                case 19200: f |= 0b00000101; break;
+                case 38400: f |= 0b00000110; break;
+                case 62500: f |= 0b00000111; break;
+            }
+        }
+    }
+    void addFLAGS(int FEC, int TXP, char *buf, const std::string &modType) {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            buf[5] = 0b0100'0000; //transparent transmission mode and pull ups
+            if (FEC == 1) {
+                buf[5] |= 0b0000'0100;
+            }
+            if (TXP == 1) {
+                buf[5] |= 0b0000'0011;
+            } else if (TXP == 2) {
+                buf[5] |= 0b0000'0010;
+            } else if (TXP == 3) {
+                buf[5] |= 0b0000'0001;
+            }
+        } else {
+            buf[7] = 0;
+            if (TXP == 1) {
+                buf[7] |= 0b0000'0011;
+            } else if (TXP == 2) {
+                buf[7] |= 0b0000'0010;
+            } else if (TXP == 3) {
+                buf[7] |= 0b0000'0001;
+            }
+        }
+    }
+    void addCH(float ch, char *buf, const std::string &modType) {
+        if (modType == "E32-433T20D" || modType == "SX1278") {
+            char &f = buf[4];
+            int chi = ch - 410;
+            f = chi;
+        } else if (modType == "E32-915T30D" || modType == "SX1276") {
+            char &f = buf[4];
+            int chi = ch - 900;
+            f = chi;
+        } else if (modType == "E22-230T22U") {
+            char &f = buf[8];
+            ch *= 4;
+            int chi = ch - (220 * 4);
+            f = chi;
+        } else if (modType == "E22-400T22U" || modType == "SX1268") {
+            char &f = buf[8];
+            int chi = ch - 410;
+            f = chi;
+        } else if (modType == "E22-900T22U" || modType == "SX1262") {
+            char &f = buf[8];
+            int chi = ch - 850;
+            f = chi;
+        }
+    }
+    void setupQuery(char buf[256], const std::string &modType, int &rl) {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+            buf[0] = 0xC1;
+            buf[1] = 0xC1;
+            buf[2] = 0xC1;
+            rl = 6;
+        } else {
+            buf[0] = 0xC1;
+            buf[1] = 0;
+            buf[2] = 7;
+            rl = 10;
+        }
+    }
+    void printBuf(const char *buf, const char *pfx, int len) {
+        char out[256];
+        snprintf(out, sizeof(out), "%s (%d): ", pfx, len);
+        for (int x = 0; x < len; x++) {
+            int l = strlen(out);
+            snprintf(out + l, sizeof(out) - l,  "%02X ", buf[x]);
+        }
+        LogDebug(VB_PLUGIN, "%s\n", out);
+    }
     int sendCommand(int sdevFile, char *buf, int sendLen, int expRead) {
         int w = write(sdevFile, buf, sendLen);
+        //printf("Wrote %d bytes\n", w);
         tcdrain(sdevFile);
         int i = read(sdevFile, buf, expRead);
         int count = 0;
         int total = i;
         while (i >= 0 && count < 1000 && total < expRead) {
-            if (i == 0) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                count++;
-            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            count++;
             i = read(sdevFile, &buf[total], expRead - total);
             if (i > 0) {
                 total += i;
             }
         }
+        if (total == 0) {
+            // didn't respond, we'll resend the command and see if that works
+            w = write(sdevFile, buf, sendLen);
+            //printf("Wrote %d bytes (attempt 2)\n", w);
+            tcdrain(sdevFile);
+            i = read(sdevFile, buf, expRead);
+            count = 0;
+            total = i;
+            while (i >= 0 && count < 1000 && total < expRead) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                count++;
+                i = read(sdevFile, &buf[total], expRead - total);
+                if (i > 0) {
+                    total += i;
+                }
+            }
+        }
         return total;
     }
-    
+
     virtual HTTP_RESPONSE_CONST std::shared_ptr<httpserver::http_response> render_POST(const httpserver::http_request &req) override {
-        printf("In render_POST\n");
-        
-        std::string MA = req.get_arg("MA");
-        std::string UBR = req.get_arg("UBR");
-        std::string ADR = req.get_arg("ADR");
-        std::string FEC = req.get_arg("FEC");
-        std::string TXP = req.get_arg("TXP");
-        std::string CH = req.get_arg("CH");
-        if (FEC == "") {
-            FEC = std::string("0");
-        }
+        Json::Value json;
+        std::string content(req.get_content());
+        LoadJsonFromString(content, json);
+        std::string modType = json["LoRaDeviceType"].asString();
+        device = json["LoRaDevicePort"].asString();
+        int MA = json["MA"].asInt();
+        int UBR = json["UBR"].asInt();
+        int ADR = json["ADR"].asInt();
+        int FEC = json["FEC"].asInt();
+        int TXP = json["TXP"].asInt();
+        float CH = json["CH"].asFloat();
         bool reopen = false;
         if (devFile >= 0) {
             SerialClose(devFile);
@@ -108,46 +259,34 @@ public:
         std::string devFileName = "/dev/" + device;
         int sdevFile = SerialOpen(devFileName.c_str(), 9600, "8N1", true);
 
-        int id = std::stoi(MA);
         char buf[256];
-        buf[0] = buf[1] = buf[2] = 0xC1;
-        
-        int w = sendCommand(sdevFile, buf, 3, 6);
-        for (int x = 0; x < w; x++) {
-            printf("C1  %d:  %X\n", x, buf[x]);
+        memset(buf, 0, sizeof(buf));
+        int packetLen;
+        setupQuery(buf, modType, packetLen);        
+        int w = sendCommand(sdevFile, buf, 3, packetLen);
+        printBuf(buf, "C1", w);
+
+        setupPacket(buf, modType);
+        addMA(MA, buf, modType);
+        addUBR(UBR, buf, modType);
+        addADR(ADR, buf, modType);
+        addCH(CH, buf, modType);
+        addFLAGS(FEC, TXP, buf, modType);
+        printBuf(buf, "C0S", packetLen);
+        w = sendCommand(sdevFile, buf, packetLen, packetLen);
+        printBuf(buf, "C0E", w);
+        if (w == 0) {
+            w = sendCommand(sdevFile, buf, packetLen, packetLen);
+            printBuf(buf, "C0E", w);    
         }
         
-        buf[0] = 0xC0;
-        buf[1] = (id >> 8) & 0xFF;
-        buf[2] = id & 0xFF;
-        buf[3] = 0b1100'0000;
-        addUBR(UBR, buf[3]);
-        addADR(ADR, buf[3]);
-        buf[4] = std::stoi(CH);
-        
-        buf[5] = 0b0100'0000;
-        if (FEC == "1") {
-            buf[5] |= 0b0000'0100;
-        }
-        if (TXP == "1") {
-            buf[5] |= 0b0000'0011;
-        } else if (TXP == "2") {
-            buf[5] |= 0b0000'0010;
-        } else if (TXP == "3") {
-            buf[5] |= 0b0000'0001;
-        }
-        w = sendCommand(sdevFile, buf, 6, 6);
-        for (int x = 0; x < w; x++) {
-            printf("C0  %d:  %X\n", x, buf[x]);
-        }
-        
-        buf[0] = buf[1] = buf[2] = 0xC1;
-        w = sendCommand(sdevFile, buf, 3, 6);
-        for (int x = 0; x < w; x++) {
-            printf("C1  %d:  %X\n", x, buf[x]);
-        }
+        memset(buf, 0, sizeof(buf));
+        setupQuery(buf, modType, packetLen);        
+        w = sendCommand(sdevFile, buf, 3, packetLen);
+        printBuf(buf, "C1E", w);
+
         SerialClose(sdevFile);
-        
+        LogInfo(VB_PLUGIN, "LoRa Module Configured\n", devFileName.c_str());
         if (reopen) {
             Init();
         }
@@ -164,10 +303,10 @@ public:
         std::string devFileName = "/dev/" + device;
         devFile = SerialOpen(devFileName.c_str(), baud, "8N1", getFPPmode() != REMOTE_MODE);
         if (devFile < 0) {
-            LogWarn(VB_SYNC, "Could not open %s\n", devFileName.c_str());
+            LogWarn(VB_PLUGIN, "Could not open %s\n", devFileName.c_str());
             return false;
         } else {
-            LogDebug(VB_SYNC, "LoRa Configured - %s    Baud: %d\n", devFileName.c_str(), baud);
+            LogDebug(VB_PLUGIN, "LoRa Configured - %s    Baud: %d\n", devFileName.c_str(), baud);
         }
         return true;
     }
@@ -493,17 +632,20 @@ public:
 };
 
 
-class LoRaFPPPlugin : public FPPPlugin {
+class LoRaFPPPlugin : public  FPPPlugins::Plugin, public FPPPlugins::APIProviderPlugin {
 public:
     LoRaMultiSyncPlugin *plugin = new LoRaMultiSyncPlugin();
     bool enabled = false;
     
-    LoRaFPPPlugin() : FPPPlugin("LoRa") {
+    LoRaFPPPlugin() : FPPPlugins::Plugin("LoRa"), FPPPlugins::APIProviderPlugin() {
         enabled = plugin->loadSettings();
     }
-    virtual ~LoRaFPPPlugin() {}
+    virtual ~LoRaFPPPlugin() {
+        delete plugin;
+        plugin = nullptr;
+    }
     
-    void registerApis(httpserver::webserver *m_ws) {
+    virtual void registerApis(httpserver::webserver *m_ws) override {
         //at this point, most of FPP is up and running, we can register our MultiSync plugin
         if (enabled && plugin->Init()) {
             if (getFPPmode() == PLAYER_MODE) {
@@ -516,8 +658,15 @@ public:
         m_ws->register_resource("/LoRa", plugin, true);
         
     }
-    
-    virtual void addControlCallbacks(std::map<int, std::function<bool(int)>> &callbacks) {
+    virtual void unregisterApis(httpserver::webserver* m_ws) override {
+        m_ws->unregister_resource("/LoRa");
+        if (enabled) {
+            plugin->ShutdownSync();
+            multiSync->removeMultiSyncPlugin(plugin);
+        }
+    }
+
+    virtual void addControlCallbacks(std::map<int, std::function<bool(int)>> &callbacks) override {
         if (enabled && getFPPmode() == REMOTE_MODE) {
             plugin->addControlCallbacks(callbacks);
             if (plugin->bridgeToLocal) {
@@ -530,7 +679,7 @@ public:
 
 
 extern "C" {
-    FPPPlugin *createPlugin() {
+    FPPPlugins::Plugin *createPlugin() {
         return new LoRaFPPPlugin();
     }
 }
