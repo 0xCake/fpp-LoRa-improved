@@ -19,6 +19,10 @@ $LoRaAirSpeeds['15600'] = '15600';
 $LoRaAirSpeeds['19200'] = '19200';
 $LoRaAirSpeeds['38400'] = '38400';
 $LoRaAirSpeeds['62500'] = '62500';
+$LoRaAirSpeeds['125'] = '125';
+$LoRaAirSpeeds['250'] = '250';
+$LoRaAirSpeeds['500'] = '500';
+
 
 $LoRaAirSpeeds1276 = Array();
 
@@ -35,10 +39,8 @@ $LoRaAdapterTypes['E32-915T30D'] = 'E32-915T30D';
 $LoRaAdapterTypes['E22-230T22U'] = 'E22-230T22U';
 $LoRaAdapterTypes['E22-400T22U'] = 'E22-400T22U';
 $LoRaAdapterTypes['E22-900T22U'] = 'E22-900T22U';
-$LoRaAdapterTypes['SX1262'] = 'SX1262';
-$LoRaAdapterTypes['SX1268'] = 'SX1268';
-$LoRaAdapterTypes['SX1276'] = 'SX1276';
-$LoRaAdapterTypes['SX1278'] = 'SX1278';
+$LoRaAdapterTypes['Waveshare USB-TO-LoRa-HF'] = 'Waveshare USB-TO-LoRa-HF';
+$LoRaAdapterTypes['Waveshare USB-TO-LoRa-LF'] = 'Waveshare USB-TO-LoRa-LF';
 
 $LoRaTransmitChannel = Array();
 
@@ -104,6 +106,11 @@ LoRaAirSpeeds1262_230['9600'] = '9600';
 LoRaAirSpeeds1262_230['15600'] = '15600';
 
 
+var LoRaAirSpeedsWaveshare = Array(); //230
+LoRaAirSpeedsWaveshare['125'] = '125 KHz';
+LoRaAirSpeedsWaveshare['250'] = '250 KHz';
+LoRaAirSpeedsWaveshare['500'] = '500 KHz';
+
 function setupChannels(start, increment, max, defaultChannel) {
     var ch = document.getElementById("CH");
     var originalChannel = pluginSettings['CH'];
@@ -130,19 +137,10 @@ function setupChannels(start, increment, max, defaultChannel) {
 function SetupDefaultsForModule() {
     var moduleType = document.getElementById("LoRaDeviceType").value;
     var airspeeds = LoRaAirSpeeds1268;
-    if (moduleType == "SX1276") {
-        airspeeds = LoRaAirSpeeds1276;
-        setupChannels(900, 1, 0x1F, 915);
-    } else if (moduleType == "SX1278") {
-        airspeeds = LoRaAirSpeeds1278;
-        setupChannels(410, 1, 0x1F, 433);
-    } else if (moduleType == "SX1262") {
-        airspeeds = LoRaAirSpeeds1262;
-        setupChannels(850, 1, 0x51, 915);
-    } else if (moduleType == "SX1268") {
-        airspeeds = LoRaAirSpeeds1268;
-        setupChannels(410, 1, 0x53, 433);
-    } else if (moduleType == "E22-230T22U") {
+    document.getElementById("FEC").hidden = true;
+    document.getElementById("FECLABEL").hidden = true;
+    document.getElementById("LoRaConfigDiv").hidden = false;
+    if (moduleType == "E22-230T22U") {
         airspeeds = LoRaAirSpeeds1262_230;
         setupChannels(220, 0.25, 0x40, 230);
     } else if (moduleType == "E22-400T22U") {
@@ -154,9 +152,21 @@ function SetupDefaultsForModule() {
     } else if (moduleType == "E32-433T20D") {
         airspeeds = LoRaAirSpeeds1278;
         setupChannels(410, 1, 0x1F, 433);
+        document.getElementById("FEC").hidden = false;
+        document.getElementById("FECLABEL").hidden = false;
     } else if (moduleType == "E32-915T30D") {
         airspeeds = LoRaAirSpeeds1276;
         setupChannels(900, 1, 0x1F, 915);
+        document.getElementById("FEC").hidden = false;
+        document.getElementById("FECLABEL").hidden = false;
+    } else if (moduleType == "Waveshare USB-TO-LoRa-HF") {
+        airspeeds = LoRaAirSpeedsWaveshare;
+        setupChannels(850, 1, 0x51, 915);
+        document.getElementById("LoRaConfigDiv").hidden = true;
+    } else if (moduleType == "Waveshare USB-TO-LoRa-LF") {
+        airspeeds = LoRaAirSpeedsWaveshare;
+        setupChannels(410, 1, 0x53, 433);
+        document.getElementById("LoRaConfigDiv").hidden = true;
     }
     var orig = document.getElementById("ADR").value;
     var found = false;
@@ -164,14 +174,18 @@ function SetupDefaultsForModule() {
     for (var i in airspeeds) {
         var opt = document.createElement("option");
         opt.value = i;
-        opt.innerHTML = i;
+        opt.innerHTML = airspeeds[i];
         document.getElementById("ADR").appendChild(opt);
         if (i == orig) {
             found = true;
         }
     }
     if (!found) {
-        orig = "2400";
+        if (moduleType == "Waveshare USB-TO-LoRa-HF" || moduleType == "Waveshare USB-TO-LoRa-LF") {
+            orig = "125";
+        } else {
+            orig = "2400";
+        }
     }
     document.getElementById("ADR").value = orig;
     if (!found) {
@@ -211,7 +225,7 @@ Enable LoRa Plugin:  <? PrintSettingCheckbox("Enable LoRa", "LoRaEnable", 1, 0, 
 <p>
 <p>
 The FPP LoRa plugin supports using the UART/USB based LoRa modules to send/receive MultiSync packets via LoRa wireless.   It currently
-supports the EBYTE "E32-*" modules including the E32-915T30D, E32-433T20D, etc... and USB LoRa modules based on the SX1262 and SX1268 chips such as the EBYTE E22-900T22U 
+supports the EBYTE "E32-*" modules including the E32-915T30D, E32-433T20D, etc..., the EBYTE "E22-*" USB LoRa modules such as the EBYTE E22-900T22U,  and the Waveshare USB-TO-LoRa-HF and USB-TO-LoRa-LF modules.
 <p>
 For the UART based modules, they can be wired directly to the UART pins on the Pi/BBB or by pluging into the USB port using a E15-USB-T2 adapter (recommended).
 Make sure the M1 and M2 pins are pulled low.  On the E15-USB-T2, make sure the two jumpers are in place.
@@ -240,18 +254,20 @@ into Remote mode.
 <br>
 
 <fieldset>
-<legend>LoRa Device Configuration</legend>
+<legend>LoRa Configuration</legend>
+<div id="LoRaConfigDiv">
 In order to configure the LoRa device, FPPD must be running with the LoRa plugin loaded.
 The module must be put into Sleep mode.  For USB based  modules, this is usually done by pressing and holding
 a user button on the device for about 2 seconds.  A red light may come on.   For TTY based modules, the module
 put into sleep mode by pulling M1 and M2 high.  If using the E15-USB-T2 adapter, just remove
 the M1 and M2 jumpers.   
 <p>
-    <p>
+<p>
 Put the modules in sleep mode, configure the settings below, and then press the "Configure" button.  The module will
 be configured.  You will then need to take the module out of sleep mode by re-installing the jumpers or repressing the
 user button.
 <p>
+</div>
 
 Module Type: <? PrintSettingSelect("LoRaDeviceType", "LoRaDeviceType", 0, 0, 'SX1262', $LoRaAdapterTypes, "fpp-LoRa", "SetupDefaultsForModule") ?>
 <br>
@@ -261,11 +277,11 @@ UART Baud Rate: <? PrintSettingSelect("UBR", "UBR", 0, 0, '9600', $LoRaSpeeds, "
 <br>
 Air Data Rate: <? PrintSettingSelect("ADR", "ADR", 0, 0, '2400', $LoRaAirSpeeds, "fpp-LoRa") ?>
 <br>
-FEC (Forward Error Correction): <? PrintSettingCheckbox("FEC", "FEC", 0, 0, 1, 0, "fpp-LoRa", '', 1) ?>
-<br>
 Transmit Power: <? PrintSettingSelect("TXP", "TXP", 0, 0, '4', $LoRaTransmitPower, "fpp-LoRa") ?>
 <br>
 Channel/Frequency: <? PrintSettingSelect("CH", "CH", 0, 0, '', $LoRaTransmitChannel, "fpp-LoRa") ?>
+<br>
+<span id="FECLABEL">FEC (Forward Error Correction):</span> <? PrintSettingCheckbox("FEC", "FEC", 0, 0, 1, 0, "fpp-LoRa", '', 1) ?>
 <br>
 <input type="button" value="Configure" class="buttons" onclick="submitLoRaConfig()"/>
 

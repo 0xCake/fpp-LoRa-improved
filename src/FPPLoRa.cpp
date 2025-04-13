@@ -49,7 +49,7 @@ public:
     }
     void setupPacket(char *buf, const std::string &modType) {
         buf[0] = 0xC0;
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             // nothing else
         } else {
             buf[1] = 0x00;
@@ -57,7 +57,7 @@ public:
         }
     }
     void addMA(int MA, char *buf, const std::string &modType) {
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             buf[1] = (MA >> 8) & 0xFF;
             buf[2] = MA & 0xFF;
         } else {
@@ -67,7 +67,7 @@ public:
         }
     }
     void addUBR(int UBR, char *buf, const std::string &modType) {
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             char &f = buf[3];
             f &= 0b11000111;
             switch (UBR) {
@@ -96,7 +96,7 @@ public:
         }
     }
     void addADR(int ADR, char *buf, const std::string &modType) {
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             char &f = buf[3];
             // clear the last 3 bits
             f &= 0b11111000;
@@ -118,7 +118,7 @@ public:
                 case 9600:  f |= 0b00000101; break;
                 case 15600: f |= 0b00000110; break;
             }
-        } else if (modType == "E22-400T22U" || modType == "E22-900T22U" || modType == "SX1262" || modType == "SX1268") {
+        } else if (modType == "E22-400T22U" || modType == "E22-900T22U") {
             char &f = buf[6];
             // clear the last 3 bits
             f &= 0b11111000;
@@ -133,7 +133,7 @@ public:
         }
     }
     void addFLAGS(int FEC, int TXP, char *buf, const std::string &modType) {
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             buf[5] = 0b0100'0000; //transparent transmission mode and pull ups
             if (FEC == 1) {
                 buf[5] |= 0b0000'0100;
@@ -157,11 +157,11 @@ public:
         }
     }
     void addCH(float ch, char *buf, const std::string &modType) {
-        if (modType == "E32-433T20D" || modType == "SX1278") {
+        if (modType == "E32-433T20D") {
             char &f = buf[4];
             int chi = ch - 410;
             f = chi;
-        } else if (modType == "E32-915T30D" || modType == "SX1276") {
+        } else if (modType == "E32-915T30D") {
             char &f = buf[4];
             int chi = ch - 900;
             f = chi;
@@ -170,18 +170,18 @@ public:
             ch *= 4;
             int chi = ch - (220 * 4);
             f = chi;
-        } else if (modType == "E22-400T22U" || modType == "SX1268") {
+        } else if (modType == "E22-400T22U") {
             char &f = buf[8];
             int chi = ch - 410;
             f = chi;
-        } else if (modType == "E22-900T22U" || modType == "SX1262") {
+        } else if (modType == "E22-900T22U") {
             char &f = buf[8];
             int chi = ch - 850;
             f = chi;
         }
     }
     void setupQuery(char buf[256], const std::string &modType, int &rl) {
-        if (modType == "E32-433T20D" || modType == "E32-915T30D" || modType == "SX1276" || modType == "SX1278") {
+        if (modType == "E32-433T20D" || modType == "E32-915T30D") {
             buf[0] = 0xC1;
             buf[1] = 0xC1;
             buf[2] = 0xC1;
@@ -238,55 +238,60 @@ public:
     }
 
     virtual HTTP_RESPONSE_CONST std::shared_ptr<httpserver::http_response> render_POST(const httpserver::http_request &req) override {
-        Json::Value json;
-        std::string content(req.get_content());
-        LoadJsonFromString(content, json);
-        std::string modType = json["LoRaDeviceType"].asString();
-        device = json["LoRaDevicePort"].asString();
-        int MA = json["MA"].asInt();
-        int UBR = json["UBR"].asInt();
-        int ADR = json["ADR"].asInt();
-        int FEC = json["FEC"].asInt();
-        int TXP = json["TXP"].asInt();
-        float CH = json["CH"].asFloat();
         bool reopen = false;
         if (devFile >= 0) {
             SerialClose(devFile);
             devFile = -1;
             reopen = true;
-        }
-        
-        std::string devFileName = "/dev/" + device;
-        int sdevFile = SerialOpen(devFileName.c_str(), 9600, "8N1", true);
+        }        
+        Json::Value json;
+        std::string content(req.get_content());
+        LoadJsonFromString(content, json);
+        std::string modType = json["LoRaDeviceType"].asString();
 
-        char buf[256];
-        memset(buf, 0, sizeof(buf));
-        int packetLen;
-        setupQuery(buf, modType, packetLen);        
-        int w = sendCommand(sdevFile, buf, 3, packetLen);
-        printBuf(buf, "C1", w);
+        if (!startsWith(modType, "Waveshare")) {
+            device = json["LoRaDevicePort"].asString();
+            int MA = json["MA"].asInt();
+            int UBR = json["UBR"].asInt();
+            int ADR = json["ADR"].asInt();
+            int FEC = json["FEC"].asInt();
+            int TXP = json["TXP"].asInt();
+            float CH = json["CH"].asFloat();
 
-        setupPacket(buf, modType);
-        addMA(MA, buf, modType);
-        addUBR(UBR, buf, modType);
-        addADR(ADR, buf, modType);
-        addCH(CH, buf, modType);
-        addFLAGS(FEC, TXP, buf, modType);
-        printBuf(buf, "C0S", packetLen);
-        w = sendCommand(sdevFile, buf, packetLen, packetLen);
-        printBuf(buf, "C0E", w);
-        if (w == 0) {
+            
+            std::string devFileName = "/dev/" + device;
+            int sdevFile = SerialOpen(devFileName.c_str(), 9600, "8N1", true);
+
+            char buf[256];
+            memset(buf, 0, sizeof(buf));
+            int packetLen;
+            setupQuery(buf, modType, packetLen);        
+            int w = sendCommand(sdevFile, buf, 3, packetLen);
+            printBuf(buf, "C1", w);
+
+            setupPacket(buf, modType);
+            addMA(MA, buf, modType);
+            addUBR(UBR, buf, modType);
+            addADR(ADR, buf, modType);
+            addCH(CH, buf, modType);
+            addFLAGS(FEC, TXP, buf, modType);
+            printBuf(buf, "C0S", packetLen);
             w = sendCommand(sdevFile, buf, packetLen, packetLen);
-            printBuf(buf, "C0E", w);    
-        }
-        
-        memset(buf, 0, sizeof(buf));
-        setupQuery(buf, modType, packetLen);        
-        w = sendCommand(sdevFile, buf, 3, packetLen);
-        printBuf(buf, "C1E", w);
+            printBuf(buf, "C0E", w);
+            if (w == 0) {
+                w = sendCommand(sdevFile, buf, packetLen, packetLen);
+                printBuf(buf, "C0E", w);    
+            }
+            
+            memset(buf, 0, sizeof(buf));
+            setupQuery(buf, modType, packetLen);        
+            w = sendCommand(sdevFile, buf, 3, packetLen);
+            printBuf(buf, "C1E", w);
 
-        SerialClose(sdevFile);
-        LogInfo(VB_PLUGIN, "LoRa Module Configured\n", devFileName.c_str());
+            SerialClose(sdevFile);
+            LogInfo(VB_PLUGIN, "LoRa Module Configured\n", devFileName.c_str());
+        }
+        loadSettings();
         if (reopen) {
             Init();
         }
@@ -297,7 +302,62 @@ public:
         return httpserver::http_response_builder("OK", 200);
 #endif
     }
-    
+    void writeWS(const char *buf, bool resp = true) {
+        if (devFile >= 0) {
+            write(devFile, buf, strlen(buf));
+            tcdrain(devFile);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        if (resp) {
+            char buf2[256];
+            memset(buf2, 0, sizeof(buf2));
+            int r = read(devFile, buf2, 256);
+            //printBuf(buf2, "C1", r);
+        }
+    }
+    void setupWaveshare() {
+        char buf[256];
+        writeWS("\r\n", false); //  Go into AT mode
+        writeWS("+++\r\n"); //  Go into AT mode
+        writeWS("AT+SF=7\r\n"); // 1 Spreading Factor = 7
+        snprintf(buf, sizeof(buf), "AT+BW=0\r\n", ADR == 500 ? 2 : ((ADR == 250) ? 1 : 0)); // 2 Bandwidth = 125KHz
+        writeWS(buf);
+        writeWS("AT+CR=1\r\n"); // 3 Encoding Rate = 4/5
+        int pwr = 22;
+        if (TXP == 1) {
+            pwr = 10;
+        } else if (TXP == 2) {
+            pwr = 13;
+        } else if (TXP == 3) {
+            pwr = 17;
+        }
+        snprintf(buf, sizeof(buf), "AT+PWR=%d\r\n", pwr); // 4 Set Power to Low Value
+        writeWS(buf);
+        writeWS("AT+NETID=0\r\n"); // 5 Network ID = 0
+
+        snprintf(buf, sizeof(buf), "AT+ADDR=%d\r\n", MA); // 6 Address = 0
+        writeWS(buf);
+        writeWS("AT+LBT=0\r\n"); // 7 Disable LBT
+        writeWS("AT+MODE=1\r\n"); // 8 Stream Mode
+
+        int ch = CH;
+        if (modType == "Waveshare USB-TO-LoRa-HF") {
+            ch -= 850;
+        } else {
+            ch -= 410;
+        }
+        snprintf(buf, sizeof(buf), "AT+TXCH=%d\r\n", ch); // 9 Transmit Channel
+        writeWS(buf);
+        snprintf(buf, sizeof(buf), "AT+RXCH=%d\r\n", ch); // 10 Receive Channel
+        writeWS(buf);
+        writeWS("AT+RSSI=0\r\n"); // 11 Set the RSSI enabled
+        writeWS("AT+PORT=3\r\n"); // 12 Set Port to RS232
+        snprintf(buf, sizeof(buf), "AT+BAUD=%d\r\n",baud); // 13 Set baudrate to 115200
+        writeWS(buf);
+        writeWS("AT+COMM=\"8N1\"\r\n"); // 14 Set Com port parameters 8N1
+        writeWS("AT+KEY=0\r\n"); // 15 Disable encryption
+        writeWS("AT+EXIT\r\n"); // 16 Exit AT mode  
+    }
 
     bool Init() {
         std::string devFileName = "/dev/" + device;
@@ -307,6 +367,10 @@ public:
             return false;
         } else {
             LogDebug(VB_PLUGIN, "LoRa Configured - %s    Baud: %d\n", devFileName.c_str(), baud);
+        }
+        if (startsWith(modType, "Waveshare")) {
+            // Waveshare modules need a different setup
+            setupWaveshare();
         }
         return true;
     }
@@ -607,6 +671,18 @@ public:
                     baud = std::stoi(c);
                 } else if (a == "LoRaMediaEnable") {
                     sendMediaSync = std::stoi(c) != 0;
+                } else if (a == "LoRaDeviceType") {
+                    modType = line;
+                    modType.erase(0, modType.find_first_of('\"'));
+                    modType.erase(std::remove( modType.begin(), modType.end(), '\"' ), modType.end());
+                } else if (a == "MA") {
+                    MA = std::stoi(c);
+                } else if (a == "ADR") {
+                    ADR = std::stoi(c);
+                } else if (a == "TXP") {
+                    TXP = std::stoi(c);
+                } else if (a == "CH") {
+                    CH = std::stoi(c);
                 }
             }
         }
@@ -617,6 +693,7 @@ public:
     std::string device = "ttyUSB0";
     int baud = 9600;
     bool bridgeToLocal = false;
+    std::string modType = "E32-915T30D";
 
     std::string lastSequence;
     std::string lastMedia;
@@ -629,6 +706,10 @@ public:
     char readBuffer[256];
     int curPosition = 0;
 
+    int CH = 915;
+    int ADR = 2500;
+    int MA = 0;
+    int TXP = 4;
 };
 
 
