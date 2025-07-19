@@ -629,7 +629,7 @@ public:
                     switch (readBuffer[0]) {
                         case SET_SEQUENCE_NAME:
                             // Julian Start
-                            currentSequence = &readBuffer[1]
+                            currentSequence = &readBuffer[1];
                             if (lastSequence.c_str() != currentSequence.c_str()) {
                             // Julian End
                                 lastSequence = &readBuffer[1];
