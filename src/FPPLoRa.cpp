@@ -629,7 +629,8 @@ public:
                     switch (readBuffer[0]) {
                         case SET_SEQUENCE_NAME:
                             // Julian Start
-                            if (lastSequence.c_str() != &readBuffer[1].c_str()) {
+                            currentSequence = &readBuffer[1]
+                            if (lastSequence.c_str() != currentSequence.c_str()) {
                             // Julian End
                                 lastSequence = &readBuffer[1];
                                 multiSync->OpenSyncedSequence(&readBuffer[1]);
@@ -812,6 +813,7 @@ public:
     // Julian Start
     bool loraLocked = true;
     float lastSeqNameSentTime = 0.0f;
+    std::string currentSequence;
     // Julian End
 };
 
