@@ -33,8 +33,14 @@ enum {
     STOP_SEQUENCE     = 5,
     STOP_MEDIA        = 6,
     SYNC              = 7,
+
+    // Julian Start
+    UNLOCK            = 0xff,
+    // Julian End
     
     BLANK             = 9
+
+
 };
 
 class LoRaMultiSyncPlugin : public MultiSyncPlugin, public httpserver::http_resource  {
@@ -372,6 +378,12 @@ public:
             // Waveshare modules need a different setup
             setupWaveshare();
         }
+
+        // Julian Start
+        if (getFPPmode() == REMOTE_MODE) {
+            tcflush(devFile, TCIFLUSH);
+        }
+        // Julian End
         return true;
     }
     virtual void ShutdownSync(void) override {
@@ -382,13 +394,36 @@ public:
     }
 
     void send(char *buf, int len) {
+        // Julian Start
+        for (int i=0; i<len; i++) {
+            if (static_cast<unsigned char>(buf[i]) == UNLOCK) {
+                buf[i] = 0xfe;
+            }
+        }
+        // Julian End
+
         if (devFile >= 0) {
             write(devFile, buf, len);
             tcdrain(devFile);
         }
     }
+
+    // Julian Start
+    void unfilteredSend(char *buf, int len) {
+        if (devFile >= 0) {
+            write(devFile, buf, len);
+            tcdrain(devFile);
+        }
+    }
+    // Julian End
     
     void SendSync(uint32_t frames, float seconds) {
+        // Julian Start
+        if (frames == 0) {
+            lastSeqNameSentTime = 0.0f;
+        }
+        // Julian End
+
         int diff = frames - lastSentFrame;
         float diffT = seconds - lastSentTime;
         bool sendSync = false;
@@ -404,6 +439,21 @@ public:
         } else if (diff == 16) {
             sendSync = true;
         }
+
+        // Julian Start
+        if (seconds-lastSeqNameSentTime >= 10) {
+            char lockBuf[2];
+            lockBuf[0] = UNLOCK;
+            unfilteredSend(lockBuf, 1);
+
+            char newBuf[256];
+            strcpy(&newBuf[1], lastSequence.c_str());
+            newBuf[0] = SET_SEQUENCE_NAME;
+            send(newBuf, lastSequence.length() + 2);
+
+            lastSeqNameSentTime = seconds;
+        }
+        // Julian End
         
         if (sendSync) {
             char buf[120];
@@ -419,6 +469,12 @@ public:
     }
 
     virtual void SendSeqOpenPacket(const std::string &filename) override {
+        // Julian Start
+        char lockBuf[2];
+        lockBuf[0] = UNLOCK;
+        unfilteredSend(lockBuf, 1);
+        // Julian End
+
         char buf[256];
         strcpy(&buf[1], filename.c_str());
         buf[0] = SET_SEQUENCE_NAME;
@@ -510,6 +566,14 @@ public:
         if (curPosition == 0) {
             return false;
         }
+
+        // Julian Start
+        if (loraLocked) {
+            commandSize = 1;
+            return true;
+        }
+        // Julian End
+
         switch (readBuffer[0]) {
         case SET_SEQUENCE_NAME:
         case SET_MEDIA_NAME:
@@ -528,6 +592,9 @@ public:
         case START_MEDIA:
         case STOP_SEQUENCE:
         case STOP_MEDIA:
+        // Julian Start
+        case UNLOCK:
+        // Julian End
         case BLANK:
             commandSize = 1;
             break;
@@ -546,6 +613,14 @@ public:
                 curPosition += i;
                 int commandSize = 0;
                 while (fullCommandRead(commandSize)) {
+                    // Julian Start
+                    if (loraLocked) {
+                        if (readBuffer[0] == UNLOCK) {
+                            loraLocked = false;
+                        }
+                    } else {
+                    // Julian End
+
                     if (readBuffer[0] == SYNC) {
                         LogExcess(VB_SYNC, "LoRa Callback - %d   (%d bytes of %d)\n", readBuffer[0], commandSize, curPosition);
                     } else {
@@ -553,11 +628,21 @@ public:
                     }
                     switch (readBuffer[0]) {
                         case SET_SEQUENCE_NAME:
-                            lastSequence = &readBuffer[1];
-                            multiSync->OpenSyncedSequence(&readBuffer[1]);
-                            if (bridgeToLocal) {
-                                multiSync->SendSeqOpenPacket(&readBuffer[1]);
+                            // Julian Start
+                            if (lastSequence.c_str() != &readBuffer[1].c_str()) {
+                            // Julian End
+                                lastSequence = &readBuffer[1];
+                                multiSync->OpenSyncedSequence(&readBuffer[1]);
+                                // Julian Start
+                                multiSync->StartSyncedSequence(lastSequence.c_str());
+                                multiSync->SyncSyncedSequence(lastSequence.c_str(), 0, 0);
+                                // Julian End
+                                if (bridgeToLocal) {
+                                    multiSync->SendSeqOpenPacket(&readBuffer[1]);
+                                }
+                            // Julian Start
                             }
+                            // Julian End
                             break;
                         case SET_MEDIA_NAME:
                             lastMedia = &readBuffer[1];
@@ -593,6 +678,9 @@ public:
                                 if (bridgeToLocal) {
                                     multiSync->SendSeqSyncStopPacket(lastSequence);
                                 }
+                                // Julian Start
+                                loraLocked = true;
+                                // Julian End
                             }
                             break;
                         case STOP_MEDIA:
@@ -630,13 +718,23 @@ public:
                                 multiSync->SendBlankingDataPacket();
                             }
                             break;
+                        // Julian Start
+                        case UNLOCK:
+                            break;
+                        // Julian End
                         default:
                             LogWarn(VB_SYNC, "Unknown command   cmd: %d    (%d bytes)\n", readBuffer[0], curPosition);
                             break;
                     }
+
+                    // Julian Start
+                    }
+                    // Julian End
                     if (commandSize < curPosition) {
+                        LogDebug(VB_PLUGIN, "Julians Plugin: Command %d\n", readBuffer[0]);
                         memcpy(readBuffer, &readBuffer[commandSize],  curPosition - commandSize);
                         curPosition -= commandSize;
+                        LogDebug(VB_PLUGIN, "Julians Plugin: CurPosition %d, CommandSize %d\n", curPosition, commandSize);
                     } else {
                         curPosition = 0;
                     }
@@ -710,6 +808,11 @@ public:
     int ADR = 2500;
     int MA = 0;
     int TXP = 4;
+
+    // Julian Start
+    bool loraLocked = true;
+    float lastSeqNameSentTime = 0.0f;
+    // Julian End
 };
 
 
