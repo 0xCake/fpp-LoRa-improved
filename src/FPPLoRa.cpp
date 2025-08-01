@@ -630,7 +630,7 @@ public:
                         case SET_SEQUENCE_NAME:
                             // Julian Start
                             currentSequence = &readBuffer[1];
-                            if (lastSequence.c_str() != currentSequence.c_str()) {
+                            if (lastSequence != currentSequence) {
                             // Julian End
                                 lastSequence = &readBuffer[1];
                                 multiSync->OpenSyncedSequence(&readBuffer[1]);
